@@ -10,58 +10,47 @@ module.exports = {
   signup(req, res) {
     return res.render('auth/signup');
   },
-  async register(req, res) {
+  async register(req, res, next) {
     try {
-      const {
-        email,
-      } = req.body;
+      const { email } = req.body;
 
-      if (await Users.findOne({
-          where: {
-            email,
-          }
-        })) {
+      if (await Users.findOne({ where: { email } })) {
         req.flash('error', 'E-mail já cadastrado');
         return res.redirect('back');
       }
 
       const password = await bcrypt.hash(req.body.password, 5);
 
-      await Users.create({ ...req.body,
-        password
-      });
+      await Users.create({ ...req.body, password });
       req.flash('success', 'Usuário cadastrado com sucesso!');
       return res.redirect('/');
     } catch (err) {
-
+      return next(err);
     }
   },
-  async authenticate(req, res) {
-    const {
-      email,
-      password,
-    } = req.body;
+  async authenticate(req, res, next) {
+    try {
+      const { email, password } = req.body;
 
-    const user = await Users.findOne({
-      where: {
-        email,
-      },
-    });
-    if (!user) {
-      req.flash('error', 'Usuário Inexistente');
-      return res.redirect('back');
+      const user = await Users.findOne({ where: { email } });
+      if (!user) {
+        req.flash('error', 'Usuário Inexistente');
+        return res.redirect('back');
+      }
+
+      if (!await bcrypt.compare(password, user.password)) {
+        req.flash('error', 'Senha incorreta');
+        return res.redirect('back');
+      }
+
+      req.session.user = user;
+
+      return req.session.save(() => {
+        res.redirect('app/dashboard');
+      });
+    } catch (err) {
+      return next(err);
     }
-
-    if (!await bcrypt.compare(password, user.password)) {
-      req.flash('error', 'Senha incorreta');
-      return res.redirect('back');
-    }
-
-    req.session.user = user;
-
-    return req.session.save(() => {
-      res.redirect('app/dashboard');
-    });
   },
 
   signout(req, res) {
